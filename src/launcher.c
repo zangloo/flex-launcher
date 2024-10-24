@@ -1351,6 +1351,7 @@ int main(int argc, char *argv[])
     
     // Main program loop
     log_debug("Begin program loop");
+    int modified = 0;
     while (1) {
         ticks.main = SDL_GetTicks();
         while (SDL_PollEvent(&event)) {
@@ -1362,12 +1363,14 @@ int main(int argc, char *argv[])
                 case SDL_KEYDOWN:
                     ticks.last_input = ticks.main;
                     handle_keypress(&event.key.keysym);
+                    modified = 1;
                     break;
                 
                 case SDL_MOUSEBUTTONDOWN:
                     if (config.mouse_select && event.button.button == SDL_BUTTON_LEFT) {
                         ticks.last_input = ticks.main;
                         execute_command(current_entry->cmd);
+                        modified = 1;
                     }
                     break;
 
@@ -1401,13 +1404,17 @@ int main(int argc, char *argv[])
                         else // Sometimes the launcher loses focus when autostarting on Windows
                             set_foreground_window();
 #endif
+                        modified = 1;
                     }
                     else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
                         log_debug("Gained keyboard focus");
                         state.has_focus = true;
+                        modified = 1;
                     }
-                    else if (event.window.event == SDL_WINDOWEVENT_LEAVE)
+                    else if (event.window.event == SDL_WINDOWEVENT_LEAVE) {
                         log_debug("Lost mouse focus");
+                        modified = 1;
+		    }
                     break;
 #ifdef _WIN32
                 case SDL_SYSWMEVENT:
@@ -1441,10 +1448,11 @@ int main(int argc, char *argv[])
             if (config.on_launch == ON_LAUNCH_BLANK)
                 set_draw_color();
         }
-        if (state.application_running)
-            SDL_Delay(APPLICATION_WAIT_PERIOD);
-        else
+        if (modified) {
             draw_screen();
+            modified = 0;
+        } else
+            SDL_Delay(APPLICATION_WAIT_PERIOD);
     }
     quit(EXIT_SUCCESS);
 }
