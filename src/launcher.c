@@ -1354,6 +1354,16 @@ int main(int argc, char *argv[])
     int modified = 0;
     while (1) {
         ticks.main = SDL_GetTicks();
+        if (state.application_running)
+            SDL_Delay(APPLICATION_WAIT_PERIOD);
+	else if (modified) {
+            draw_screen();
+            modified = 0;
+        } else {
+            Uint32 sleep_time = refresh_period - (SDL_GetTicks() - ticks.main);
+            if (sleep_time > 0)
+                SDL_Delay(sleep_time);
+        }
         while (SDL_PollEvent(&event)) {
             switch(event.type) {
                 case SDL_QUIT:
@@ -1419,7 +1429,7 @@ int main(int argc, char *argv[])
 #ifdef _WIN32
                 case SDL_SYSWMEVENT:
                     check_exit_hotkey(event.syswm.msg);
-                    break;
+		    break;
 #endif
             }
         }
@@ -1448,11 +1458,6 @@ int main(int argc, char *argv[])
             if (config.on_launch == ON_LAUNCH_BLANK)
                 set_draw_color();
         }
-        if (modified) {
-            draw_screen();
-            modified = 0;
-        } else
-            SDL_Delay(APPLICATION_WAIT_PERIOD);
     }
     quit(EXIT_SUCCESS);
 }
