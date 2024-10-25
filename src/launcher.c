@@ -37,7 +37,7 @@ static void load_back_menu(Menu *menu);
 static void draw_screen(void);
 static void handle_keypress(SDL_Keysym *key);
 static void execute_command(const char *command);
-static void poll_gamepad(void);
+static bool poll_gamepad(void);
 static void init_gamepad(Gamepad **gamepad, int device_index);
 static void connect_gamepad(int device_index, bool open, bool raise_error);
 static void disconnect_gamepad(int id, bool disconnect, bool remove);
@@ -961,10 +961,11 @@ static void disconnect_gamepad(int id, bool disconnect, bool remove)
 }
 
 // A function to poll the connected gamepad for commands
-static void poll_gamepad()
+static bool poll_gamepad()
 {
     int value_multiplier; // Handles positive or negative axis
     bool pressed;
+    bool modified = false;
     for (GamepadControl *i = gamepad_controls; i != NULL; i = i->next) {
         pressed = false;
         for (Gamepad *gamepad = gamepads; gamepad != NULL; gamepad = gamepad->next) {
@@ -1007,7 +1008,9 @@ static void poll_gamepad()
             execute_command(i->cmd);
             i->repeat -= repeat_period;
         }
+	modified = true;
     }
+    return modified;
 }
 
 // A function to update the slideshow
@@ -1351,14 +1354,14 @@ int main(int argc, char *argv[])
     
     // Main program loop
     log_debug("Begin program loop");
-    int modified = 0;
+    bool modified = false;
     while (1) {
         ticks.main = SDL_GetTicks();
         if (state.application_running)
             SDL_Delay(APPLICATION_WAIT_PERIOD);
 	else if (modified) {
             draw_screen();
-            modified = 0;
+            modified = false;
         } else {
             Uint32 sleep_time = refresh_period - (SDL_GetTicks() - ticks.main);
             if (sleep_time > 0)
@@ -1373,14 +1376,14 @@ int main(int argc, char *argv[])
                 case SDL_KEYDOWN:
                     ticks.last_input = ticks.main;
                     handle_keypress(&event.key.keysym);
-                    modified = 1;
+                    modified = true;
                     break;
                 
                 case SDL_MOUSEBUTTONDOWN:
                     if (config.mouse_select && event.button.button == SDL_BUTTON_LEFT) {
                         ticks.last_input = ticks.main;
                         execute_command(current_entry->cmd);
-                        modified = 1;
+                        modified = true;
                     }
                     break;
 
@@ -1414,16 +1417,16 @@ int main(int argc, char *argv[])
                         else // Sometimes the launcher loses focus when autostarting on Windows
                             set_foreground_window();
 #endif
-                        modified = 1;
+                        modified = true;
                     }
                     else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
                         log_debug("Gained keyboard focus");
                         state.has_focus = true;
-                        modified = 1;
+                        modified = true;
                     }
                     else if (event.window.event == SDL_WINDOWEVENT_LEAVE) {
                         log_debug("Lost mouse focus");
-                        modified = 1;
+                        modified = true;
 		    }
                     break;
 #ifdef _WIN32
@@ -1444,7 +1447,8 @@ int main(int argc, char *argv[])
         // Post-event loop updates
         if (!(state.application_running || state.application_launching)) {
             if (gamepads != NULL)
-                poll_gamepad();
+                if (poll_gamepad())
+                    modified = true;
             if (config.background_mode == BACKGROUND_SLIDESHOW)
                 update_slideshow();
             if (config.screensaver_enabled)
